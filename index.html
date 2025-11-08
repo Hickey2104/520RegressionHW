@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admission Chance Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.min.js"></script>
+</head>
+<body style="font-family: Arial; margin: 40px;">
+  <h1>🎓 Admission Chance Predictor</h1>
+  <p>Enter your academic details to predict your chance of admission.</p>
+
+  <form id="predictForm">
+    <label>GRE Score:</label><br />
+    <input type="number" id="gre" step="1" value="320" /><br /><br />
+
+    <label>TOEFL Score:</label><br />
+    <input type="number" id="toefl" step="1" value="110" /><br /><br />
+
+    <label>University Rating (1–5):</label><br />
+    <input type="number" id="university_rating" step="1" value="4" /><br /><br />
+
+    <label>SOP (1–5):</label><br />
+    <input type="number" id="sop" step="0.5" value="4.0" /><br /><br />
+
+    <label>LOR (1–5):</label><br />
+    <input type="number" id="lor" step="0.5" value="4.5" /><br /><br />
+
+    <label>CGPA (0–10):</label><br />
+    <input type="number" id="cgpa" step="0.01" value="9.2" /><br /><br />
+
+    <label>Research (0 = No, 1 = Yes):</label><br />
+    <input type="number" id="research" step="1" min="0" max="1" value="1" /><br /><br />
+
+    <button type="submit">Predict</button>
+  </form>
+
+  <h2 id="result" style="margin-top:20px; color:darkblue;"></h2>
+
+  <script>
+    ort.env.wasm.numThreads = 1; // avoid crossOrigin warning
+    ort.env.wasm.simd = true;
+
+    let session;
+
+    async function loadModel() {
+      try {
+        session = await ort.InferenceSession.create("best_model.onnx");
+        console.log("✅ ONNX model loaded successfully.");
+      } catch (err) {
+        console.error("❌ Failed to load ONNX model:", err);
+      }
+    }
+
+    async function runPrediction(event) {
+      event.preventDefault();
+
+      try {
+        // Collect 7 user inputs
+        let inputArray = [
+          parseFloat(document.getElementById("gre").value),
+          parseFloat(document.getElementById("toefl").value),
+          parseFloat(document.getElementById("university_rating").value),
+          parseFloat(document.getElementById("sop").value),
+          parseFloat(document.getElementById("lor").value),
+          parseFloat(document.getElementById("cgpa").value),
+          parseFloat(document.getElementById("research").value)
+        ];
+
+        // 👇 Pad with a dummy zero so the model gets 8 features
+        if (inputArray.length === 7) inputArray.push(0.0);
+
+        console.log("Input shape:", inputArray.length, "=>", inputArray);
+
+        // Convert to ONNX tensor
+        const tensor = new ort.Tensor("float32", Float32Array.from(inputArray), [1, inputArray.length]);
+
+        // Run model inference
+        const results = await session.run({ input: tensor });
+        const output = results.output.data[0];
+
+        // Display result
+        document.getElementById("result").innerText =
+          "Predicted Chance of Admission: " + (output * 100).toFixed(2) + "%";
+      } catch (err) {
+        console.error("Prediction error:", err);
+        document.getElementById("result").innerText = "⚠️ Prediction failed. See console for details.";
+      }
+    }
+
+    // Load model when page opens
+    document.addEventListener("DOMContentLoaded", loadModel);
+    document.getElementById("predictForm").addEventListener("submit", runPrediction);
+  </script>
+</body>
+</html>
